@@ -1,9 +1,11 @@
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, CheckCircle2, Download, File as FileIcon, Loader2, ScanLine, Zap } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Download, File as FileIcon, Loader2, ScanLine } from "lucide-react";
 import { Html5Qrcode } from "html5-qrcode";
-import { PeerSession, defaultDeviceName, formatBytes, type IncomingFile } from "@/lib/peer";
+import { PeerSession, defaultDeviceName, formatBytes, type IncomingFile, type TransferOffer } from "@/lib/peer";
+import { addTransferHistory, readTransferHistory, type TransferHistoryEntry } from "@/lib/transfer-history";
+import { BrandMark } from "@/components/brand-mark";
 
 type Search = { s?: string };
 
@@ -27,36 +29,68 @@ function ReceivePage() {
   const [code, setCode] = useState(search.s ?? "");
   const [connected, setConnected] = useState(false);
   const [status, setStatus] = useState("idle");
+  const [statusInfo, setStatusInfo] = useState("");
   const [files, setFiles] = useState<IncomingFile[]>([]);
   const [progress, setProgress] = useState<Record<string, { sent: number; total: number }>>({});
   const [peerName, setPeerName] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [offer, setOffer] = useState<TransferOffer | null>(null);
+  const [speed, setSpeed] = useState(0);
+  const [history, setHistory] = useState<TransferHistoryEntry[]>([]);
   const [deviceName] = useState(() => defaultDeviceName());
   const sessionRef = useRef<PeerSession | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
 
   // Auto-connect if ?s= present
   useEffect(() => {
-    if (search.s && !connected) connect(search.s);
+    if (search.s && !connected) void connect(search.s);
+    setHistory(readTransferHistory());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const connect = (id: string) => {
+  const connect = async (id: string) => {
     const trimmed = id.trim();
     if (!trimmed) return;
-    setConnected(true);
     setCode(trimmed);
+    sessionRef.current?.close();
     const s = new PeerSession(trimmed, "receiver", {
-      onStatus: setStatus,
+      onStatus: (st, info) => {
+        setStatus(st);
+        setStatusInfo(info ?? "");
+      },
       onPeerName: setPeerName,
       onIncoming: (f) => setFiles([...f]),
       onProgress: (id, sent, total) => setProgress((p) => ({ ...p, [id]: { sent, total } })),
+      onOffer: setOffer,
+      onSpeed: setSpeed,
     }, deviceName);
     sessionRef.current = s;
-    s.start();
+    try {
+      await s.start();
+      setConnected(true);
+    } catch (e) {
+      console.error(e);
+      setConnected(false);
+      setStatus("error");
+      setStatusInfo(e instanceof Error ? e.message : "Could not join session");
+    }
   };
 
   useEffect(() => () => sessionRef.current?.close(), []);
+
+  useEffect(() => {
+    if (status !== "complete" || files.length === 0) return;
+    const entry: TransferHistoryEntry = {
+      id: crypto.randomUUID(),
+      mode: "received",
+      peerName: peerName || "Sender",
+      fileCount: files.length,
+      totalBytes: files.reduce((sum, file) => sum + file.meta.size, 0),
+      completedAt: Date.now(),
+    };
+    addTransferHistory(entry);
+    setHistory(readTransferHistory());
+  }, [files, peerName, status]);
 
   const startScan = async () => {
     setScanning(true);
@@ -108,7 +142,7 @@ function ReceivePage() {
         </Link>
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-hero shadow-glow">
-            <Zap className="h-4 w-4 text-primary-foreground" />
+            <BrandMark className="h-4 w-4 text-primary-foreground" />
           </div>
           <span className="font-semibold tracking-tight">PeerDrop</span>
         </div>
@@ -144,7 +178,7 @@ function ReceivePage() {
             <div className="mt-6">
               <p className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Or enter session code</p>
               <form
-                onSubmit={(e) => { e.preventDefault(); connect(code); }}
+                onSubmit={(e) => { e.preventDefault(); void connect(code); }}
                 className="flex gap-2"
               >
                 <input
@@ -160,6 +194,7 @@ function ReceivePage() {
                   Connect
                 </button>
               </form>
+              {statusInfo && <p className="mt-2 text-xs text-destructive/90">{statusInfo}</p>}
             </div>
           </section>
         ) : (
@@ -170,11 +205,31 @@ function ReceivePage() {
                   {peerName ? `Connecting to ${peerName}` : "Pairing…"}
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">Code: <span className="font-mono">{code}</span></p>
+                {statusInfo && <p className="mt-1 text-xs text-destructive/90">{statusInfo}</p>}
               </div>
               <ConnectionDot status={status} />
             </div>
 
             <div className="mt-6 space-y-3">
+              {offer && status === "awaiting-accept" && (
+                <div className="rounded-2xl border border-primary/30 bg-primary/10 p-4">
+                  <p className="text-sm font-medium">Incoming transfer request</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {offer.count} file(s) · {formatBytes(offer.totalSize)}
+                  </p>
+                  <button
+                    onClick={() => {
+                      sessionRef.current?.acceptTransfer();
+                      setOffer(null);
+                      setStatus("transferring");
+                    }}
+                    className="mt-3 rounded-xl bg-gradient-hero px-4 py-2 text-sm font-semibold text-primary-foreground shadow-glow"
+                  >
+                    Accept transfer
+                  </button>
+                </div>
+              )}
+
               <AnimatePresence>
                 {files.length === 0 && (
                   <motion.div
@@ -220,6 +275,26 @@ function ReceivePage() {
                   </div>
                 );
               })}
+
+              {speed > 0 && (
+                <div className="rounded-xl border border-border bg-card/30 px-3 py-2 text-xs text-muted-foreground">
+                  Current receive speed: {formatBytes(speed)}/s
+                </div>
+              )}
+
+              {history.length > 0 && (
+                <div className="rounded-xl border border-border bg-card/30 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent transfers</p>
+                  <ul className="mt-2 space-y-1 text-xs">
+                    {history.slice(0, 4).map((entry) => (
+                      <li key={entry.id} className="flex items-center justify-between">
+                        <span>{entry.mode === "sent" ? "Sent" : "Received"} {entry.fileCount} file(s)</span>
+                        <span className="text-muted-foreground">{formatBytes(entry.totalBytes)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           </section>
         )}
@@ -234,8 +309,10 @@ function ConnectionDot({ status }: { status: string }) {
     waiting: { c: "bg-primary animate-pd-pulse", t: "Waiting" },
     connecting: { c: "bg-accent animate-pd-pulse", t: "Connecting" },
     connected: { c: "bg-primary", t: "Connected" },
+    "awaiting-accept": { c: "bg-accent animate-pd-pulse", t: "Awaiting acceptance" },
     transferring: { c: "bg-primary animate-pd-pulse", t: "Receiving" },
     complete: { c: "bg-primary", t: "Done" },
+    expired: { c: "bg-destructive", t: "Expired" },
     error: { c: "bg-destructive", t: "Error" },
   };
   const s = map[status] ?? map.idle;

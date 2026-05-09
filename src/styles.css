@@ -63,33 +63,33 @@
 
 :root {
   --radius: 0.625rem;
-  /* PeerDrop — cyber dark default */
-  --background: oklch(0.16 0.03 270);
-  --foreground: oklch(0.97 0.01 240);
-  --card: oklch(0.21 0.035 268);
+  /* PeerDrop — calm product dark theme */
+  --background: oklch(0.16 0.01 260);
+  --foreground: oklch(0.96 0.01 255);
+  --card: oklch(0.2 0.012 260);
   --card-foreground: oklch(0.97 0.01 240);
-  --popover: oklch(0.21 0.035 268);
+  --popover: oklch(0.2 0.012 260);
   --popover-foreground: oklch(0.97 0.01 240);
-  --primary: oklch(0.78 0.18 195);
-  --primary-foreground: oklch(0.18 0.04 260);
-  --primary-glow: oklch(0.85 0.18 175);
-  --secondary: oklch(0.27 0.05 280);
+  --primary: oklch(0.72 0.13 235);
+  --primary-foreground: oklch(0.98 0.004 255);
+  --primary-glow: oklch(0.74 0.12 235);
+  --secondary: oklch(0.25 0.016 260);
   --secondary-foreground: oklch(0.97 0.01 240);
-  --muted: oklch(0.24 0.03 270);
-  --muted-foreground: oklch(0.7 0.03 255);
-  --accent: oklch(0.7 0.22 320);
-  --accent-foreground: oklch(0.16 0.03 270);
-  --destructive: oklch(0.65 0.25 25);
+  --muted: oklch(0.23 0.01 260);
+  --muted-foreground: oklch(0.68 0.015 255);
+  --accent: oklch(0.69 0.09 190);
+  --accent-foreground: oklch(0.16 0.01 260);
+  --destructive: oklch(0.64 0.18 22);
   --destructive-foreground: oklch(0.98 0.01 0);
-  --border: oklch(0.32 0.04 270 / 60%);
-  --input: oklch(0.28 0.04 270);
-  --ring: oklch(0.78 0.18 195);
+  --border: oklch(0.34 0.012 255 / 70%);
+  --input: oklch(0.24 0.01 260);
+  --ring: oklch(0.72 0.13 235);
 
-  --gradient-hero: linear-gradient(135deg, oklch(0.78 0.18 195) 0%, oklch(0.7 0.22 320) 100%);
-  --gradient-surface: radial-gradient(ellipse at top, oklch(0.27 0.05 280 / 80%), oklch(0.16 0.03 270) 70%);
-  --gradient-border: linear-gradient(135deg, oklch(0.78 0.18 195 / 60%), oklch(0.7 0.22 320 / 60%));
-  --shadow-glow: 0 0 60px -10px oklch(0.78 0.18 195 / 60%);
-  --shadow-elegant: 0 20px 60px -20px oklch(0 0 0 / 50%);
+  --gradient-hero: linear-gradient(140deg, oklch(0.7 0.11 235) 0%, oklch(0.66 0.08 200) 100%);
+  --gradient-surface: radial-gradient(ellipse at top, oklch(0.24 0.014 260 / 90%), oklch(0.15 0.01 260) 72%);
+  --gradient-border: linear-gradient(140deg, oklch(0.7 0.11 235 / 35%), oklch(0.66 0.08 200 / 35%));
+  --shadow-glow: 0 0 0 0 transparent;
+  --shadow-elegant: 0 20px 48px -28px oklch(0 0 0 / 55%);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -150,39 +150,36 @@
     background-attachment: fixed;
     color: var(--color-foreground);
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    letter-spacing: 0.01em;
   }
 }
 
 @layer utilities {
   .text-gradient {
-    background: var(--gradient-hero);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: var(--color-foreground);
   }
   .bg-gradient-hero { background: var(--gradient-hero); }
   .shadow-glow { box-shadow: var(--shadow-glow); }
   .shadow-elegant { box-shadow: var(--shadow-elegant); }
   .glass {
-    background: oklch(0.21 0.035 268 / 60%);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid oklch(0.78 0.18 195 / 20%);
+    background: oklch(0.2 0.012 260 / 86%);
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-elegant);
   }
   @keyframes pd-pulse {
-    0%, 100% { opacity: 0.6; transform: scale(1); }
-    50% { opacity: 1; transform: scale(1.05); }
+    0%, 100% { opacity: 0.75; }
+    50% { opacity: 1; }
   }
-  .animate-pd-pulse { animation: pd-pulse 2.4s ease-in-out infinite; }
+  .animate-pd-pulse { animation: pd-pulse 3s ease-in-out infinite; }
   @keyframes pd-grid-pan {
     from { background-position: 0 0; }
     to { background-position: 60px 60px; }
   }
   .grid-bg {
     background-image:
-      linear-gradient(oklch(0.78 0.18 195 / 8%) 1px, transparent 1px),
-      linear-gradient(90deg, oklch(0.78 0.18 195 / 8%) 1px, transparent 1px);
-    background-size: 60px 60px;
-    animation: pd-grid-pan 20s linear infinite;
+      linear-gradient(oklch(0.96 0.01 255 / 4%) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(0.96 0.01 255 / 4%) 1px, transparent 1px);
+    background-size: 72px 72px;
+    animation: none;
   }
 }

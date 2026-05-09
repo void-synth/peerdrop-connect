@@ -9,6 +9,11 @@ import {
 } from "@tanstack/react-router";
 
 import appCss from "../styles.css?url";
+import faviconUrl from "../assets/favicon.svg?url";
+
+const SITE_URL =
+  import.meta.env.VITE_PUBLIC_SITE_URL ||
+  (typeof window !== "undefined" ? window.location.origin : undefined);
 
 function NotFoundComponent() {
   return (
@@ -78,14 +83,23 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { property: "og:title", content: "PeerDrop — Instant peer-to-peer file sharing" },
       { property: "og:description", content: "Send files between devices through your browser. No uploads. WebRTC + QR pairing." },
       { property: "og:type", content: "website" },
+      { property: "og:site_name", content: "PeerDrop" },
+      ...(SITE_URL ? [{ property: "og:url", content: SITE_URL }] : []),
       { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
+      { name: "twitter:title", content: "PeerDrop — Instant peer-to-peer file sharing" },
+      { name: "twitter:description", content: "Send files between devices through your browser. No uploads. WebRTC + QR pairing." },
     ],
     links: [
       {
         rel: "stylesheet",
         href: appCss,
       },
+      {
+        rel: "icon",
+        type: "image/svg+xml",
+        href: faviconUrl,
+      },
+      ...(SITE_URL ? [{ rel: "canonical", href: SITE_URL }] : []),
     ],
   }),
   shellComponent: RootShell,

@@ -2,8 +2,10 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import QRCode from "qrcode";
-import { ArrowLeft, CheckCircle2, File as FileIcon, Loader2, Trash2, Upload, Zap } from "lucide-react";
+import { ArrowLeft, CheckCircle2, File as FileIcon, Loader2, Trash2, Upload } from "lucide-react";
 import { PeerSession, defaultDeviceName, formatBytes, newSessionId } from "@/lib/peer";
+import { addTransferHistory, readTransferHistory, type TransferHistoryEntry } from "@/lib/transfer-history";
+import { BrandMark } from "@/components/brand-mark";
 
 export const Route = createFileRoute("/send")({
   head: () => ({
@@ -22,45 +24,97 @@ function SendPage() {
   const [sessionId] = useState(() => newSessionId());
   const [qrUrl, setQrUrl] = useState<string>("");
   const [status, setStatus] = useState<string>("idle");
+  const [statusInfo, setStatusInfo] = useState<string>("");
   const [peerName, setPeerName] = useState<string>("");
   const [progress, setProgress] = useState<Record<string, { sent: number; total: number }>>({});
+  const [expiresAt, setExpiresAt] = useState<number | null>(null);
+  const [secondsLeft, setSecondsLeft] = useState<number>(0);
+  const [history, setHistory] = useState<TransferHistoryEntry[]>([]);
   const [deviceName] = useState(() => defaultDeviceName());
   const sessionRef = useRef<PeerSession | null>(null);
+  const sentForConnectionRef = useRef(false);
   const dropRef = useRef<HTMLDivElement>(null);
   const [drag, setDrag] = useState(false);
 
+  const totalSize = files.reduce((s, f) => s + f.size, 0);
+
   useEffect(() => {
-    const url = `${window.location.origin}/receive?s=${sessionId}`;
-    QRCode.toDataURL(url, { width: 320, margin: 1, color: { dark: "#0b1220", light: "#bdf6ff" } }).then(setQrUrl);
+    QRCode.toDataURL(sessionId, { width: 320, margin: 1, color: { dark: "#0b1220", light: "#bdf6ff" } }).then(setQrUrl);
+    setHistory(readTransferHistory());
   }, [sessionId]);
 
-  // Start session as soon as we have files
+  // Start session on page load so receiver can pair first.
   useEffect(() => {
-    if (files.length === 0 || sessionRef.current) return;
+    if (sessionRef.current) return;
+    sentForConnectionRef.current = false;
     const s = new PeerSession(sessionId, "sender", {
-      onStatus: (st) => setStatus(st),
+      onStatus: (st, info) => {
+        setStatus(st);
+        setStatusInfo(info ?? "");
+      },
       onPeerName: (n) => setPeerName(n),
       onProgress: (id, sent, total) =>
         setProgress((p) => ({ ...p, [id]: { sent, total } })),
+      onSessionMeta: (expires) => setExpiresAt(expires),
     }, deviceName);
     sessionRef.current = s;
-    s.start();
+    s.start().catch((e) => {
+      console.error(e);
+      setStatus("error");
+      setStatusInfo(e instanceof Error ? e.message : "Could not start session");
+    });
     return () => {
       s.close();
       sessionRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [files.length > 0]);
+  }, []);
 
-  // Auto-send when receiver connects
+  // Auto-send once when data channel is open and we have files.
   useEffect(() => {
-    if (status === "connected" && sessionRef.current && files.length > 0) {
-      sessionRef.current.sendFiles(files).catch((e) => {
-        console.error(e);
-        setStatus("error");
-      });
-    }
+    if (status !== "connected" || !sessionRef.current || files.length === 0) return;
+    if (sentForConnectionRef.current) return;
+    sentForConnectionRef.current = true;
+    sessionRef.current.sendFiles(files).catch((e) => {
+      console.error(e);
+      sentForConnectionRef.current = false;
+      setStatus("error");
+      setStatusInfo(e instanceof Error ? e.message : "Send failed");
+    });
   }, [status, files]);
+
+  useEffect(() => {
+    if (status === "waiting" || status === "idle" || status === "connecting") {
+      sentForConnectionRef.current = false;
+    }
+  }, [status]);
+
+  useEffect(() => {
+    if (status !== "complete" || files.length === 0) return;
+    const entry: TransferHistoryEntry = {
+      id: crypto.randomUUID(),
+      mode: "sent",
+      peerName: peerName || "Receiver",
+      fileCount: files.length,
+      totalBytes: totalSize,
+      completedAt: Date.now(),
+    };
+    addTransferHistory(entry);
+    setHistory(readTransferHistory());
+  }, [files.length, peerName, status, totalSize]);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    const timer = window.setInterval(() => {
+      setSecondsLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [expiresAt]);
+
+  useEffect(() => {
+    if (!expiresAt) return;
+    setSecondsLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)));
+  }, [expiresAt]);
 
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -68,8 +122,6 @@ function SendPage() {
     const fl = Array.from(e.dataTransfer.files);
     if (fl.length) setFiles((prev) => [...prev, ...fl]);
   }, []);
-
-  const totalSize = files.reduce((s, f) => s + f.size, 0);
 
   return (
     <div className="relative min-h-screen overflow-hidden">
@@ -168,8 +220,28 @@ function SendPage() {
             </div>
 
             <p className="mt-4 font-mono text-xs text-muted-foreground">code: {sessionId}</p>
+            {expiresAt && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Session expires in {Math.floor(secondsLeft / 60)}m {secondsLeft % 60}s
+              </p>
+            )}
 
             <StatusPill status={status} peerName={peerName} files={files.length} progress={progress} />
+            {statusInfo && <p className="mt-2 text-center text-xs text-destructive/90">{statusInfo}</p>}
+
+            {history.length > 0 && (
+              <div className="mt-6 w-full rounded-2xl border border-border bg-card/30 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent transfers</p>
+                <ul className="mt-2 space-y-1 text-xs">
+                  {history.slice(0, 4).map((entry) => (
+                    <li key={entry.id} className="flex items-center justify-between">
+                      <span>{entry.mode === "sent" ? "Sent" : "Received"} {entry.fileCount} file(s)</span>
+                      <span className="text-muted-foreground">{formatBytes(entry.totalBytes)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </div>
         </section>
       </main>
@@ -192,8 +264,10 @@ function StatusPill({
   else if (status === "waiting") { label = "Waiting for receiver…"; dot = "bg-primary animate-pd-pulse"; }
   else if (status === "connecting") { label = `Connecting${peerName ? ` to ${peerName}` : ""}…`; dot = "bg-accent animate-pd-pulse"; }
   else if (status === "connected") { label = `Connected${peerName ? ` · ${peerName}` : ""}`; dot = "bg-primary"; }
+  else if (status === "awaiting-accept") { label = `Waiting for ${peerName || "receiver"} to accept`; dot = "bg-accent animate-pd-pulse"; }
   else if (status === "transferring") { label = `Sending… ${pct}%`; dot = "bg-primary animate-pd-pulse"; }
   else if (status === "complete") { label = "Transfer complete ✓"; dot = "bg-primary"; }
+  else if (status === "expired") { label = "Session expired"; dot = "bg-destructive"; }
   else if (status === "error") { label = "Connection error"; dot = "bg-destructive"; }
 
   return (
@@ -227,7 +301,7 @@ function Header() {
       </Link>
       <div className="flex items-center gap-2">
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-hero shadow-glow">
-          <Zap className="h-4 w-4 text-primary-foreground" />
+          <BrandMark className="h-4 w-4 text-primary-foreground" />
         </div>
         <span className="font-semibold tracking-tight">PeerDrop</span>
       </div>

@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Link } from "@tanstack/react-router";
 import { motion } from "framer-motion";
-import { ArrowRight, QrCode, Send, Shield, Wifi, Zap } from "lucide-react";
+import { ArrowRight, QrCode, Send, Shield, Wifi } from "lucide-react";
+import { BrandMark } from "@/components/brand-mark";
 
 export const Route = createFileRoute("/")({
   component: Index,
@@ -11,12 +12,12 @@ function Index() {
   return (
     <div className="relative min-h-screen overflow-hidden">
       <div className="grid-bg pointer-events-none absolute inset-0 opacity-40" />
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-[600px] w-[600px] -translate-x-1/2 rounded-full bg-gradient-hero opacity-20 blur-3xl" />
+      <div className="pointer-events-none absolute -top-40 left-1/2 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-gradient-hero opacity-10 blur-3xl" />
 
       <header className="relative z-10 mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-6">
         <div className="flex items-center gap-2">
           <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-hero shadow-glow">
-            <Zap className="h-5 w-5 text-primary-foreground" />
+            <BrandMark className="h-5 w-5 text-primary-foreground" />
           </div>
           <span className="text-lg font-semibold tracking-tight">PeerDrop</span>
         </div>
@@ -41,8 +42,8 @@ function Index() {
           transition={{ duration: 0.7, delay: 0.05 }}
           className="max-w-3xl text-balance text-5xl font-semibold leading-[1.05] tracking-tight md:text-7xl"
         >
-          Beam files between devices.{" "}
-          <span className="text-gradient">In a tap.</span>
+          Transfer files between devices.
+          <span className="text-gradient"> Fast, direct, private.</span>
         </motion.h1>
 
         <motion.p
@@ -51,7 +52,7 @@ function Index() {
           transition={{ duration: 0.6, delay: 0.2 }}
           className="mt-6 max-w-xl text-balance text-base text-muted-foreground md:text-lg"
         >
-          Drop a file on one device, scan the QR with another. Files travel encrypted, peer-to-peer — never through a server.
+          Select files on one device, scan the code on another, and send over encrypted peer-to-peer transfer with no permanent server storage.
         </motion.p>
 
         <motion.div
@@ -82,9 +83,9 @@ function Index() {
           className="mt-20 grid w-full max-w-4xl grid-cols-1 gap-4 md:grid-cols-3"
         >
           {[
-            { icon: Zap, title: "Instant", desc: "WebRTC data channels stream chunks at LAN speed." },
+            { icon: BrandMark, title: "Instant", desc: "WebRTC data channels stream chunks at LAN speed." },
             { icon: Shield, title: "Private", desc: "Encrypted DTLS connection. Nothing stored on a server." },
-            { icon: QrCode, title: "Effortless", desc: "Scan a QR. The link pairs both devices automatically." },
+            { icon: QrCode, title: "Effortless", desc: "Scan a QR. The session code pairs both devices automatically." },
           ].map((f, i) => (
             <div key={i} className="glass rounded-2xl p-6 text-left">
               <f.icon className="h-6 w-6 text-primary" />

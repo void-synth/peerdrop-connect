@@ -12,7 +12,7 @@ const io = new Server(httpServer, {
   cors: { origin: "*" },
 });
 
-const SESSION_TTL_MS = 10 * 60 * 1000;
+const SESSION_TTL_MS = Number(process.env.SIGNAL_SESSION_TTL_MS || 30 * 60 * 1000);
 const sessions = new Map();
 const SIGNAL_MAX_SESSIONS = Number(process.env.SIGNAL_MAX_SESSIONS || 1000);
 const ALLOWED_ORIGIN = process.env.SIGNAL_ALLOWED_ORIGIN || "";

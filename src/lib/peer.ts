@@ -1,4 +1,5 @@
-import { io, Socket } from "socket.io-client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 
 export type FileMeta = { id: string; name: string; size: number; type: string };
 
@@ -47,12 +48,11 @@ const ICE: RTCConfiguration = {
 const CHUNK_SIZE = 16 * 1024;
 const BUFFER_HIGH = 1 * 1024 * 1024;
 const BUFFER_LOW = 256 * 1024;
-const CONNECT_TIMEOUT_MS = 10000;
-const ACK_TIMEOUT_MS = 10000;
+const CONNECT_TIMEOUT_MS = Number(process.env.NEXT_PUBLIC_CONNECT_TIMEOUT_MS || 25000);
 
 export class PeerSession {
   pc: RTCPeerConnection;
-  socket: Socket | null = null;
+  channel: RealtimeChannel | null = null;
   dc: RTCDataChannel | null = null;
   sessionId: string;
   role: "sender" | "receiver";
@@ -69,6 +69,8 @@ export class PeerSession {
   private speedWindowStart = 0;
   private speedBytes = 0;
   private disconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private offerSent = false;
+  private requestOfferTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(sessionId: string, role: "sender" | "receiver", events: PeerEvents, myName: string) {
     this.sessionId = sessionId;
@@ -78,7 +80,7 @@ export class PeerSession {
     this.pc = new RTCPeerConnection(ICE);
 
     this.pc.onicecandidate = (e) => {
-      if (e.candidate) this.send({ type: "ice", candidate: e.candidate.toJSON() });
+      if (e.candidate) this.sendSignal({ type: "ice", candidate: e.candidate.toJSON() });
     };
     this.pc.onconnectionstatechange = () => {
       const state = this.pc.connectionState;
@@ -107,69 +109,99 @@ export class PeerSession {
   }
 
   async start() {
-    const signalingUrl = getSignalingUrl();
-    const socket = io(signalingUrl, {
-      transports: ["websocket", "polling"],
-      reconnection: true,
-      reconnectionAttempts: 5,
-    });
-    this.socket = socket;
-
-    socket.on("connect_error", (err) => {
-      this.events.onStatus?.("error", err.message || "Signaling connection error");
+    const topic = `peerdrop:${this.sessionId}`;
+    const ch = supabase.channel(topic, {
+      config: { broadcast: { self: false, ack: false } },
     });
 
-    socket.on("signal", (payload: SignalMessage) => {
+    ch.on("broadcast", { event: "sig" }, (msg: { payload?: unknown }) => {
+      const payload = msg?.payload as SignalMessage | undefined;
+      if (!payload || typeof payload !== "object" || !("type" in payload)) return;
       this.onSignal(payload).catch(() => this.events.onStatus?.("error", "Signaling error"));
     });
 
-    socket.on("session:expired", () => this.events.onStatus?.("expired", "Session expired"));
-    socket.on("session:closed", () => this.events.onStatus?.("error", "Sender left session"));
-    socket.on("peer:left", () => this.events.onStatus?.("waiting", "Receiver disconnected"));
-    socket.on("peer:joined", ({ name }: { name: string }) => {
-      this.peerName = name || "Peer";
-      this.events.onPeerName?.(this.peerName);
-      this.events.onStatus?.("connecting");
-      this.makeOffer().catch(() => this.events.onStatus?.("error", "Offer failed"));
+    ch.on("broadcast", { event: "meta" }, (msg: { payload?: unknown }) => {
+      const payload = msg?.payload as MetaMessage | undefined;
+      if (!payload || typeof payload !== "object" || !("kind" in payload)) return;
+      this.onMeta(payload);
     });
 
     await withTimeout(
       new Promise<void>((resolve, reject) => {
-        socket.once("connect", () => resolve());
-        socket.once("connect_error", (e) => reject(e));
+        ch.subscribe((status, err) => {
+          if (status === "SUBSCRIBED") resolve();
+          else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+            reject(err instanceof Error ? err : new Error(String(err ?? status)));
+          }
+        });
       }),
       CONNECT_TIMEOUT_MS,
-      "Signaling connection timeout",
+      "Realtime subscribe timeout",
     );
 
+    this.channel = ch;
+    this.sendMeta({ kind: "hello", role: this.role, name: this.myName });
+
     if (this.role === "sender") {
-      const res = await emitAck<CreateSessionResponse>(
-        socket,
-        "session:create",
-        { sessionId: this.sessionId, name: this.myName },
-        ACK_TIMEOUT_MS,
-      );
-      if (!res.ok) throw new Error(res.message ?? "Failed to create session");
-      if (res.expiresAt) this.events.onSessionMeta?.(res.expiresAt);
       this.events.onStatus?.("waiting");
       return;
     }
 
-    const res = await emitAck<JoinSessionResponse>(
-      socket,
-      "session:join",
-      { sessionId: this.sessionId, name: this.myName },
-      ACK_TIMEOUT_MS,
-    );
-    if (!res.ok) throw new Error(res.message ?? "Could not join session");
-    this.peerName = res.senderName || "Sender";
-    this.events.onPeerName?.(this.peerName);
-    if (res.expiresAt) this.events.onSessionMeta?.(res.expiresAt);
+    this.sendMeta({ kind: "request-offer" });
     this.events.onStatus?.("connecting");
+    this.requestOfferTimer = setInterval(() => {
+      if (this.pc.remoteDescription) {
+        this.clearRequestOfferTimer();
+        return;
+      }
+      this.sendMeta({ kind: "request-offer" });
+    }, 2000);
   }
 
-  private send(payload: SignalMessage) {
-    this.socket?.emit("signal", { sessionId: this.sessionId, payload });
+  private onMeta(msg: MetaMessage) {
+    if (msg.kind === "hello") {
+      if (msg.role !== this.role && msg.name) {
+        this.peerName = msg.name;
+        this.events.onPeerName?.(this.peerName);
+        if (this.role === "receiver" && msg.role === "sender") {
+          this.events.onStatus?.("connecting");
+        }
+      }
+      if (this.role === "sender" && msg.role === "receiver" && !this.offerSent) {
+        this.offerSent = true;
+        this.events.onStatus?.("connecting");
+        this.makeOffer().catch(() => this.events.onStatus?.("error", "Offer failed"));
+      }
+      return;
+    }
+    if (msg.kind === "request-offer" && this.role === "sender" && !this.offerSent) {
+      this.offerSent = true;
+      this.events.onStatus?.("connecting");
+      this.makeOffer().catch(() => this.events.onStatus?.("error", "Offer failed"));
+      return;
+    }
+    if (msg.kind === "left") {
+      if (this.role === "sender") {
+        this.events.onStatus?.("waiting", "Receiver disconnected");
+      } else {
+        this.events.onStatus?.("error", "Sender left session");
+      }
+    }
+  }
+
+  private clearRequestOfferTimer() {
+    if (this.requestOfferTimer) {
+      clearInterval(this.requestOfferTimer);
+      this.requestOfferTimer = null;
+    }
+  }
+
+  private sendSignal(payload: SignalMessage) {
+    void this.channel?.send({ type: "broadcast", event: "sig", payload });
+  }
+
+  private sendMeta(payload: MetaMessage) {
+    void this.channel?.send({ type: "broadcast", event: "meta", payload });
   }
 
   private async onSignal(msg: SignalMessage) {
@@ -177,11 +209,12 @@ export class PeerSession {
     switch (msg.type) {
       case "offer":
         if (this.role === "receiver") {
+          this.clearRequestOfferTimer();
           await this.pc.setRemoteDescription(msg.sdp as RTCSessionDescriptionInit);
           await this.flushPendingIce();
           const answer = await this.pc.createAnswer();
           await this.pc.setLocalDescription(answer);
-          this.send({ type: "answer", sdp: answer });
+          this.sendSignal({ type: "answer", sdp: answer });
         }
         break;
       case "answer":
@@ -220,7 +253,7 @@ export class PeerSession {
   private async makeOffer() {
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
-    this.send({ type: "offer", sdp: offer });
+    this.sendSignal({ type: "offer", sdp: offer });
   }
 
   private setupDC(dc: RTCDataChannel) {
@@ -403,9 +436,11 @@ export class PeerSession {
 
   close() {
     this.clearDisconnectTimer();
+    this.clearRequestOfferTimer();
     this.resetTransferState();
     this.resetSpeedState();
     this.pendingIce = [];
+    this.offerSent = false;
     for (const incoming of this.incoming.values()) {
       if (incoming.blobUrl) URL.revokeObjectURL(incoming.blobUrl);
     }
@@ -421,10 +456,9 @@ export class PeerSession {
     } catch {
       // no-op
     }
-    try {
-      this.socket?.disconnect();
-    } catch {
-      // no-op
+    if (this.channel) {
+      void supabase.removeChannel(this.channel);
+      this.channel = null;
     }
   }
 }
@@ -434,24 +468,16 @@ type SignalMessage =
   | { type: "answer"; sdp: RTCSessionDescriptionInit }
   | { type: "ice"; candidate: RTCIceCandidateInit };
 
+type MetaMessage =
+  | { kind: "hello"; role: "sender" | "receiver"; name: string }
+  | { kind: "request-offer" }
+  | { kind: "left" };
+
 type DataMessage =
   | { type: "transfer-offer"; offer: TransferOffer }
   | { type: "transfer-accept" }
   | { type: "file-start"; meta: FileMeta }
   | { type: "file-end"; id: string };
-
-type CreateSessionResponse = { ok: boolean; message?: string; expiresAt?: number };
-type JoinSessionResponse = { ok: boolean; message?: string; expiresAt?: number; senderName?: string };
-
-function emitAck<T>(socket: Socket, event: string, payload: unknown, timeoutMs = ACK_TIMEOUT_MS): Promise<T> {
-  return withTimeout(
-    new Promise<T>((resolve) => {
-      socket.emit(event, payload, (response: T) => resolve(response));
-    }),
-    timeoutMs,
-    `Timed out waiting for ${event}`,
-  );
-}
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -466,15 +492,6 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
         reject(error);
       });
   });
-}
-
-function getSignalingUrl() {
-  if (typeof window === "undefined") {
-    return process.env.NEXT_PUBLIC_SIGNALING_URL || process.env.VITE_SIGNALING_URL || process.env.SIGNALING_URL || "http://localhost:4001";
-  }
-  if (process.env.NEXT_PUBLIC_SIGNALING_URL) return process.env.NEXT_PUBLIC_SIGNALING_URL;
-  const host = window.location.hostname || "localhost";
-  return `${window.location.protocol}//${host}:4001`;
 }
 
 export function newSessionId() {

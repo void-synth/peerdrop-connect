@@ -1,50 +1,51 @@
-# PeerDrop Deployment Guide
+# PeerDrop
 
-PeerDrop is a browser-based peer-to-peer file transfer app using WebRTC DataChannels and a Socket.IO signaling service.
+PeerDrop is a browser-based peer-to-peer file transfer app using WebRTC DataChannels with Supabase Realtime for signaling.
 
-## What runs in production
+## Runtime architecture
 
-- **Frontend app**: this TanStack/React app (`npm run build`)
-- **Signaling server**: `signaling-server/server.js` (`npm run signal`)
+- **Frontend app**: Next.js app with routes `/`, `/send`, `/receive`
+- **Signaling layer (default)**: Supabase Realtime broadcast channels (`peerdrop:<sessionId>`)
+- **Optional local fallback**: `signaling-server/server.js` via `npm run signal`
 
 ## Environment variables
 
 Create your own `.env` from `.env.example` and set:
 
-- `NEXT_PUBLIC_SIGNALING_URL`: public URL for signaling server (for browser clients)
-- `NEXT_PUBLIC_SITE_URL`: canonical public site URL (used for metadata/SEO links)
+- `NEXT_PUBLIC_SUPABASE_URL`: your Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: your Supabase publishable key
+- `NEXT_PUBLIC_SITE_URL`: canonical public site URL (metadata/SEO)
+- `NEXT_PUBLIC_CONNECT_TIMEOUT_MS`: signaling/channel connect timeout (default `25000`)
+- `NEXT_PUBLIC_SIGNALING_URL`: optional local Socket.IO signaling URL (leave empty for Supabase Realtime)
+
+Optional local signaling server variables:
+
 - `SIGNALING_PORT`: port for signaling server (default `4001`)
-- `SIGNAL_ALLOWED_ORIGIN`: exact frontend origin in production (recommended)
-- `SIGNAL_MAX_SESSIONS`: max active sessions to protect server
+- `SIGNAL_SESSION_TTL_MS`: session lifetime in milliseconds (default `1800000`)
+- `SIGNAL_ALLOWED_ORIGIN`: exact frontend origin
+- `SIGNAL_MAX_SESSIONS`: max active sessions
 
-## Local run (pre-deploy smoke test)
+## Local run (smoke test)
 
-1. Install dependencies:
-   - `npm install`
-2. Start signaling server:
-   - `npm run signal`
-3. Start web app:
-   - `npm run dev`
-4. Open two devices on same network and test:
+1. `npm install`
+2. Start app: `npm run dev`
+3. Open two browsers/devices:
    - sender: `/send`
    - receiver: `/receive`
 
-## Production checklist (today)
+If you want to test the legacy local signaling server too:
 
-- Deploy signaling service first and verify `GET /health` returns `{ "ok": true }`
-- Set `NEXT_PUBLIC_SIGNALING_URL` to the deployed signaling URL
-- Set `SIGNAL_ALLOWED_ORIGIN` to your deployed frontend URL
-- Build frontend: `npm run build`
-- Deploy frontend bundle
-- Run one live transfer test with:
-  - one small file (< 10MB)
-  - one large file (> 200MB)
-  - receiver reconnect attempt
+1. Start server: `npm run signal`
+2. Set `NEXT_PUBLIC_SIGNALING_URL=http://localhost:4001`
+3. Restart app and retest
 
-## Reliability hardening included
+## Production checklist
 
-- Signaling connect/join/create timeouts
-- ICE candidate queueing until remote SDP is set
-- Better connection/disconnect error states
-- Session validation and origin checks on signaling server
-- Receiver-slot locking (single receiver per session)
+- Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in Vercel
+- Confirm Supabase Realtime is enabled for the project
+- Build: `npm run build`
+- Deploy Next.js app
+- Run one real device-to-device transfer test:
+  - small file (< 10MB)
+  - large file (> 200MB)
+  - reconnect/retry scenario

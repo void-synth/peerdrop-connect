@@ -469,8 +469,10 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
 }
 
 function getSignalingUrl() {
-  if (typeof window === "undefined") return process.env.SIGNALING_URL ?? "http://localhost:4001";
-  if (import.meta.env.VITE_SIGNALING_URL) return import.meta.env.VITE_SIGNALING_URL;
+  if (typeof window === "undefined") {
+    return process.env.NEXT_PUBLIC_SIGNALING_URL || process.env.VITE_SIGNALING_URL || process.env.SIGNALING_URL || "http://localhost:4001";
+  }
+  if (process.env.NEXT_PUBLIC_SIGNALING_URL) return process.env.NEXT_PUBLIC_SIGNALING_URL;
   const host = window.location.hostname || "localhost";
   return `${window.location.protocol}//${host}:4001`;
 }

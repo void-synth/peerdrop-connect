@@ -11,8 +11,8 @@ PeerDrop is a browser-based peer-to-peer file transfer app using WebRTC DataChan
 
 Create your own `.env` from `.env.example` and set:
 
-- `VITE_SIGNALING_URL`: public URL for signaling server (for browser clients)
-- `VITE_PUBLIC_SITE_URL`: canonical public site URL (used for metadata/SEO links)
+- `NEXT_PUBLIC_SIGNALING_URL`: public URL for signaling server (for browser clients)
+- `NEXT_PUBLIC_SITE_URL`: canonical public site URL (used for metadata/SEO links)
 - `SIGNALING_PORT`: port for signaling server (default `4001`)
 - `SIGNAL_ALLOWED_ORIGIN`: exact frontend origin in production (recommended)
 - `SIGNAL_MAX_SESSIONS`: max active sessions to protect server
@@ -32,7 +32,7 @@ Create your own `.env` from `.env.example` and set:
 ## Production checklist (today)
 
 - Deploy signaling service first and verify `GET /health` returns `{ "ok": true }`
-- Set `VITE_SIGNALING_URL` to the deployed signaling URL
+- Set `NEXT_PUBLIC_SIGNALING_URL` to the deployed signaling URL
 - Set `SIGNAL_ALLOWED_ORIGIN` to your deployed frontend URL
 - Build frontend: `npm run build`
 - Deploy frontend bundle

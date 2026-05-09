@@ -63,25 +63,33 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --destructive-foreground: oklch(0.984 0.003 247.858);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
+  /* PeerDrop — cyber dark default */
+  --background: oklch(0.16 0.03 270);
+  --foreground: oklch(0.97 0.01 240);
+  --card: oklch(0.21 0.035 268);
+  --card-foreground: oklch(0.97 0.01 240);
+  --popover: oklch(0.21 0.035 268);
+  --popover-foreground: oklch(0.97 0.01 240);
+  --primary: oklch(0.78 0.18 195);
+  --primary-foreground: oklch(0.18 0.04 260);
+  --primary-glow: oklch(0.85 0.18 175);
+  --secondary: oklch(0.27 0.05 280);
+  --secondary-foreground: oklch(0.97 0.01 240);
+  --muted: oklch(0.24 0.03 270);
+  --muted-foreground: oklch(0.7 0.03 255);
+  --accent: oklch(0.7 0.22 320);
+  --accent-foreground: oklch(0.16 0.03 270);
+  --destructive: oklch(0.65 0.25 25);
+  --destructive-foreground: oklch(0.98 0.01 0);
+  --border: oklch(0.32 0.04 270 / 60%);
+  --input: oklch(0.28 0.04 270);
+  --ring: oklch(0.78 0.18 195);
+
+  --gradient-hero: linear-gradient(135deg, oklch(0.78 0.18 195) 0%, oklch(0.7 0.22 320) 100%);
+  --gradient-surface: radial-gradient(ellipse at top, oklch(0.27 0.05 280 / 80%), oklch(0.16 0.03 270) 70%);
+  --gradient-border: linear-gradient(135deg, oklch(0.78 0.18 195 / 60%), oklch(0.7 0.22 320 / 60%));
+  --shadow-glow: 0 0 60px -10px oklch(0.78 0.18 195 / 60%);
+  --shadow-elegant: 0 20px 60px -20px oklch(0 0 0 / 50%);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -138,7 +146,43 @@
   }
 
   body {
-    background-color: var(--color-background);
+    background: var(--gradient-surface);
+    background-attachment: fixed;
     color: var(--color-foreground);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    background: var(--gradient-hero);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .bg-gradient-hero { background: var(--gradient-hero); }
+  .shadow-glow { box-shadow: var(--shadow-glow); }
+  .shadow-elegant { box-shadow: var(--shadow-elegant); }
+  .glass {
+    background: oklch(0.21 0.035 268 / 60%);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid oklch(0.78 0.18 195 / 20%);
+  }
+  @keyframes pd-pulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.05); }
+  }
+  .animate-pd-pulse { animation: pd-pulse 2.4s ease-in-out infinite; }
+  @keyframes pd-grid-pan {
+    from { background-position: 0 0; }
+    to { background-position: 60px 60px; }
+  }
+  .grid-bg {
+    background-image:
+      linear-gradient(oklch(0.78 0.18 195 / 8%) 1px, transparent 1px),
+      linear-gradient(90deg, oklch(0.78 0.18 195 / 8%) 1px, transparent 1px);
+    background-size: 60px 60px;
+    animation: pd-grid-pan 20s linear infinite;
   }
 }

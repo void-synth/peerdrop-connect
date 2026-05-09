@@ -13,7 +13,9 @@ PeerDrop is a browser-based peer-to-peer file transfer app using WebRTC DataChan
 Create your own `.env` from `.env.example` and set:
 
 - `NEXT_PUBLIC_SUPABASE_URL`: your Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: your Supabase publishable key
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: your Supabase publishable key (or use `NEXT_PUBLIC_SUPABASE_ANON_KEY` with the anon JWT)
+
+You can also set **`SUPABASE_URL`** and **`SUPABASE_PUBLISHABLE_KEY`** (no `NEXT_PUBLIC_` prefix). `next.config.mjs` copies them into the client bundle at build time so signaling still works on Vercel.
 - `NEXT_PUBLIC_SITE_URL`: canonical public site URL (metadata/SEO)
 - `NEXT_PUBLIC_CONNECT_TIMEOUT_MS`: signaling/channel connect timeout (default `25000`)
 - `NEXT_PUBLIC_SIGNALING_URL`: optional local Socket.IO signaling URL (leave empty for Supabase Realtime)

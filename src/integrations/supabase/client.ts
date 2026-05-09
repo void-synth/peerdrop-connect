@@ -9,15 +9,24 @@ function createSupabaseClient() {
     process.env.SUPABASE_URL;
   const SUPABASE_PUBLISHABLE_KEY =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-    process.env.SUPABASE_PUBLISHABLE_KEY;
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_PUBLISHABLE_KEY ||
+    process.env.SUPABASE_ANON_KEY;
 
   if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
     const missing = [
-      ...(!SUPABASE_URL ? ['SUPABASE_URL'] : []),
-      ...(!SUPABASE_PUBLISHABLE_KEY ? ['SUPABASE_PUBLISHABLE_KEY'] : []),
+      ...(!SUPABASE_URL
+        ? ['NEXT_PUBLIC_SUPABASE_URL (or VITE_SUPABASE_URL / SUPABASE_URL)']
+        : []),
+      ...(!SUPABASE_PUBLISHABLE_KEY
+        ? [
+            'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY)',
+          ]
+        : []),
     ];
-    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. Configure Supabase credentials in your environment settings.`;
+    const message = `Missing Supabase environment variable(s): ${missing.join(', ')}. For Next.js, set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (or NEXT_PUBLIC_SUPABASE_ANON_KEY) in Vercel for every environment you deploy to (Production and Preview), then redeploy so the client bundle is rebuilt.`;
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }

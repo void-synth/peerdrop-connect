@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { PeerSession, defaultDeviceName, formatBytes, newSessionId } from "@/src/lib/peer";
+import { PeerSession, defaultDeviceName, formatBytes, newSessionId } from "@/lib/peer";
 
 export default function SendPage() {
   const [files, setFiles] = useState<File[]>([]);

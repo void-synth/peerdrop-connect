@@ -1,7 +1,10 @@
 self.__SERVER_FILES_MANIFEST={
   "version": 1,
   "config": {
-    "env": {},
+    "env": {
+      "NEXT_PUBLIC_SUPABASE_URL": "https://xdynfccwxttvfhraroce.supabase.co",
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhkeW5mY2N3eHR0dmZocmFyb2NlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzMjAyNjAsImV4cCI6MjA5Mzg5NjI2MH0.fe87n8BT3AwbbhJANhz9swrJo7yp96O4cUUWUGweDMc"
+    },
     "webpack": null,
     "typescript": {
       "ignoreBuildErrors": false

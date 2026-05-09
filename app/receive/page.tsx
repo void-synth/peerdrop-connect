@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Html5Qrcode } from "html5-qrcode";
-import { PeerSession, defaultDeviceName, formatBytes, type IncomingFile, type TransferOffer } from "@/src/lib/peer";
+import { PeerSession, defaultDeviceName, formatBytes, type IncomingFile, type TransferOffer } from "@/lib/peer";
 
 export default function ReceivePage() {
   const [code, setCode] = useState("");
